@@ -1,334 +1,253 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import SectionCard from "./SectionCard"
 
-import { JobFormState } from "../lib/types"
-import { buildRagYaml } from "../lib/yaml"
+import { JobOut } from "../lib/types"
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 
-function downloadTextFile(
-  filename: string,
-  content: string,
-  mime = "text/yaml"
-) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
-
-  URL.revokeObjectURL(url)
+function clip(s?: string, max = 28) {
+  if (!s) return "—"
+  return s.length > max
+    ? `${s.slice(0, max - 1)}…`
+    : s
 }
 
-export default function JobForm({
-  state,
-  setState,
-  onSubmit,
-  submitStatus,
-  onReset,
+export default function JobsTable({
+  rows,
+  loading,
+  error,
+  onRefresh,
+  onDelete,
 }: {
-  state: JobFormState
-  setState: React.Dispatch<
-    React.SetStateAction<JobFormState>
-  >
-  onSubmit: () => Promise<void>
-  submitStatus: string
-  onReset: () => void
+  rows: JobOut[]
+  loading: boolean
+  error: string
+  onRefresh: () => Promise<void>
+  onDelete: (
+    requestId: number
+  ) => Promise<void>
 }) {
-  const yamlPreview = React.useMemo(
-    () => buildRagYaml(state),
-    [state]
-  )
-
-  const copyYaml = async () => {
-    await navigator.clipboard.writeText(yamlPreview)
-  }
-
-  const update =
-    (key: keyof JobFormState) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value
-
-      setState((s) => ({
-        ...s,
-        [key]: value,
-      }))
-    }
-
   return (
-    <div className="space-y-8">
-      {/* ===================================================== */}
-      {/* JOB PARAMETERS */}
-      {/* ===================================================== */}
-
-      <SectionCard title="JOB PARAMETERS">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-2.5">
-            <Label>VERSION</Label>
-
-            <Input
-              value={state.version}
-              onChange={update("version")}
-              placeholder="local"
-              className="h-11 rounded-xl"
-            />
-
-            <p className="text-sm text-muted-foreground">
-              Application / environment version label.
-            </p>
-          </div>
-
-          <div className="space-y-2.5">
-            <Label>DEBUG_MODE</Label>
-
-            <Input
-              value={state.debugMode}
-              onChange={update("debugMode")}
-              placeholder="True"
-              className="h-11 rounded-xl"
-            />
-
-            <p className="text-sm text-muted-foreground">
-              Keep as string (True / False)
-              to match YAML.
-            </p>
-          </div>
-
-          <div className="space-y-2.5 sm:col-span-2">
-            <Label>source</Label>
-
-            <Input
-              value={state.source}
-              onChange={update("source")}
-              placeholder="offline"
-              className="h-11 rounded-xl"
-            />
-
-            <p className="text-sm text-muted-foreground">
-              Expected values: offline / hive
-            </p>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ===================================================== */}
-      {/* DATA PATHS */}
-      {/* ===================================================== */}
-
-      <SectionCard title="DATA PATHS">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-2.5">
-            <Label>
-              datapath.file_path_data_rep_mapping
-            </Label>
-
-            <Input
-              value={state.filePathDataRepMapping}
-              onChange={update(
-                "filePathDataRepMapping"
-              )}
-              placeholder="DataRepresentativenessMapping.xlsx"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5">
-            <Label>
-              datapath.file_path_mvp2_output
-            </Label>
-
-            <Input
-              value={state.filePathMvp2Output}
-              onChange={update(
-                "filePathMvp2Output"
-              )}
-              placeholder="glcs_data.csv"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5">
-            <Label>
-              datapath.file_path_idq_data
-            </Label>
-
-            <Input
-              value={state.filePathIdqData}
-              onChange={update(
-                "filePathIdqData"
-              )}
-              placeholder="IDQ_DATA.xlsx"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5">
-            <Label>
-              datapath.file_path_imr_data
-            </Label>
-
-            <Input
-              value={state.filePathImrData}
-              onChange={update(
-                "filePathImrData"
-              )}
-              placeholder="IMR_Ratings.xlsx"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5 sm:col-span-2">
-            <Label>
-              datapath.file_path_rag_static_data
-            </Label>
-
-            <Input
-              value={state.filePathRagStaticData}
-              onChange={update(
-                "filePathRagStaticData"
-              )}
-              placeholder="RAG_STATIC_DATA.xlsx"
-              className="h-11 rounded-xl"
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ===================================================== */}
-      {/* SCHEDULING + METADATA */}
-      {/* ===================================================== */}
-
-      <SectionCard title="SCHEDULING + METADATA">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-2.5">
-            <Label>submitted_by</Label>
-
-            <Input
-              value={state.submittedBy}
-              onChange={update("submittedBy")}
-              placeholder="your.name"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5">
-            <Label>timezone</Label>
-
-            <Input
-              value={state.timezone}
-              onChange={update("timezone")}
-              placeholder="UTC / Europe/London"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2.5 sm:col-span-2">
-            <Label>
-              cron_expression (Quartz)
-            </Label>
-
-            <Input
-              value={state.cronExpression}
-              onChange={update(
-                "cronExpression"
-              )}
-              placeholder="0 0 9 ? * MON-FRI 2026"
-              className="h-11 rounded-xl"
-            />
-
-            <p className="text-sm text-muted-foreground">
-              sec min hour day-of-month month
-              day-of-week year (optional)
-            </p>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ===================================================== */}
-      {/* YAML PREVIEW */}
-      {/* ===================================================== */}
-
-      <SectionCard title="YAML PREVIEW (GENERATED)">
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="default"
-            className="rounded-xl px-5 shadow-md"
-            onClick={() => void onSubmit()}
-          >
-            Submit
-          </Button>
-
+    <SectionCard title="REQUESTS / JOBS">
+      <div className="space-y-4">
+        {/* Header Actions */}
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
             className="rounded-xl px-5"
-            onClick={onReset}
+            onClick={() => void onRefresh()}
+            disabled={loading}
           >
-            Reset
+            {loading ? "Refreshing..." : "Refresh"}
           </Button>
 
-          <Button
-            variant="secondary"
-            className="rounded-xl px-5"
-            onClick={() => void copyYaml()}
-          >
-            Copy YAML
-          </Button>
+          {error ? (
+            <p className="text-sm font-medium text-destructive">
+              {error}
+            </p>
+          ) : null}
 
-          <Button
-            variant="secondary"
-            className="rounded-xl px-5"
-            onClick={() =>
-              downloadTextFile(
-                "rag_parameters.yml",
-                yamlPreview,
-                "text/yaml"
-              )
-            }
-          >
-            Download YAML
-          </Button>
+          {!error && loading ? (
+            <p className="text-sm text-muted-foreground">
+              Loading...
+            </p>
+          ) : null}
         </div>
 
-        {submitStatus ? (
-          <p className="mt-4 rounded-xl bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
-            {submitStatus}
-          </p>
+        {/* Table */}
+        {!loading ? (
+          <div className="overflow-auto rounded-2xl border bg-card/70 backdrop-blur-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">
+                    Request ID
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Job ID
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Version
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Debug
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Source
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Data Rep Mapping
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    MVP2 Output
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    IDQ Data
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    IMR Data
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    RAG Static
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Submitted By
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Status
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    View
+                  </TableHead>
+
+                  <TableHead className="whitespace-nowrap">
+                    Delete
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow
+                    key={String(r.request_id)}
+                    className="hover:bg-muted/40"
+                  >
+                    <TableCell className="whitespace-nowrap font-medium">
+                      {r.request_id}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.job_id ?? "—"}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.version}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.debug_mode}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.source}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.file_path_data_rep_mapping}
+                    >
+                      {clip(
+                        r.file_path_data_rep_mapping
+                      )}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.file_path_mvp2_output}
+                    >
+                      {clip(
+                        r.file_path_mvp2_output
+                      )}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.file_path_idq_data}
+                    >
+                      {clip(
+                        r.file_path_idq_data
+                      )}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.file_path_imr_data}
+                    >
+                      {clip(
+                        r.file_path_imr_data
+                      )}
+                    </TableCell>
+
+                    <TableCell
+                      title={
+                        r.file_path_rag_static_data
+                      }
+                    >
+                      {clip(
+                        r.file_path_rag_static_data
+                      )}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.submitted_by ?? "—"}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.job_status ?? "—"}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <Link
+                        href={`/jobs/${r.request_id}`}
+                        className="text-sm font-medium underline underline-offset-4 hover:text-primary"
+                      >
+                        View
+                      </Link>
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="rounded-lg"
+                        onClick={() =>
+                          void onDelete(
+                            r.request_id
+                          )
+                        }
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={14}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      No jobs found.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
         ) : null}
-
-        <div className="mt-5">
-          <Textarea
-            value={yamlPreview}
-            readOnly
-            className="min-h-[320px] rounded-2xl bg-muted/40 p-4 font-mono text-xs leading-6"
-          />
-        </div>
-      </SectionCard>
-    </div>
+      </div>
+    </SectionCard>
   )
-}
-
-
-
-
-
-
-textarea,
-input {
-  transition:
-    border-color .2s ease,
-    box-shadow .2s ease,
-    background-color .2s ease;
-}
-
-textarea:focus,
-input:focus {
-  transform: translateY(-1px);
 }
