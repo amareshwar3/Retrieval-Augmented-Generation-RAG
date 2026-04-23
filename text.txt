@@ -1,188 +1,447 @@
-@import "tailwindcss";
+"use client"
 
-/* ======================================================
-   PREMIUM SHADCN THEME TOKENS
-   Tailwind v4 safe version (NO @apply issues)
-====================================================== */
+import * as React from "react"
+import { useParams, useRouter } from "next/navigation"
 
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 47.4% 11.2%;
+import AppHeader from "../../../components/AppHeader"
+import SectionCard from "../../../components/SectionCard"
 
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 47.4% 11.2%;
+import { JobOut, JobFormState } from "../../../lib/types"
+import { buildRagYaml } from "../../../lib/yaml"
+import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api"
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 47.4% 11.2%;
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
+function downloadTextFile(
+  filename: string,
+  content: string,
+  mime = "text/yaml"
+) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
 
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-
-  --radius: 14px;
+  URL.revokeObjectURL(url)
 }
 
-.dark {
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
+export default function JobDetailsPage() {
+  const params = useParams<{ requestId: string }>()
+  const router = useRouter()
 
-  --card: 224 39% 11%;
-  --card-foreground: 210 40% 98%;
+  const requestId = Number(params.requestId)
 
-  --popover: 224 39% 11%;
-  --popover-foreground: 210 40% 98%;
+  const [job, setJob] = React.useState<JobOut | null>(null)
+  const [error, setError] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
 
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  const [version, setVersion] = React.useState("local")
+  const [debugMode, setDebugMode] = React.useState("True")
+  const [source, setSource] = React.useState("offline")
 
-  --secondary: 217 28% 16%;
-  --secondary-foreground: 210 40% 98%;
+  const [filePathDataRepMapping, setFilePathDataRepMapping] =
+    React.useState("")
+  const [filePathMvp2Output, setFilePathMvp2Output] =
+    React.useState("")
+  const [filePathIdqData, setFilePathIdqData] =
+    React.useState("")
+  const [filePathImrData, setFilePathImrData] =
+    React.useState("")
+  const [filePathRagStaticData, setFilePathRagStaticData] =
+    React.useState("")
 
-  --muted: 217 28% 16%;
-  --muted-foreground: 215 20% 72%;
+  const [submittedBy, setSubmittedBy] = React.useState("")
+  const [cronExpression, setCronExpression] = React.useState("")
+  const [timezone, setTimezone] = React.useState("UTC")
 
-  --accent: 217 28% 16%;
-  --accent-foreground: 210 40% 98%;
+  const load = React.useCallback(async () => {
+    setError("")
 
-  --destructive: 0 63% 31%;
-  --destructive-foreground: 210 40% 98%;
+    try {
+      const data = await apiGet<JobOut>(`/jobs/${requestId}`)
+      setJob(data)
 
-  --border: 217 22% 22%;
-  --input: 217 22% 22%;
-  --ring: 212 26% 83%;
-}
+      setVersion(data.version ?? "local")
+      setDebugMode(data.debug_mode ?? "True")
+      setSource(data.source ?? "offline")
 
-/* ======================================================
-   BASE
-====================================================== */
+      setFilePathDataRepMapping(
+        data.file_path_data_rep_mapping ?? ""
+      )
 
-* {
-  box-sizing: border-box;
-  border-color: hsl(var(--border));
-}
+      setFilePathMvp2Output(
+        data.file_path_mvp2_output ?? ""
+      )
 
-html {
-  scroll-behavior: smooth;
-}
+      setFilePathIdqData(
+        data.file_path_idq_data ?? ""
+      )
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  transition:
-    background-color 250ms ease,
-    color 250ms ease,
-    border-color 250ms ease;
-}
+      setFilePathImrData(
+        data.file_path_imr_data ?? ""
+      )
 
-/* ======================================================
-   PREMIUM SURFACES
-====================================================== */
+      setFilePathRagStaticData(
+        data.file_path_rag_static_data ?? ""
+      )
 
-.surface {
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  color: hsl(var(--card-foreground));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
+      setSubmittedBy(data.submitted_by ?? "")
+      setCronExpression(data.cron_expression ?? "")
+      setTimezone(data.timezone ?? "UTC")
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error")
+    }
+  }, [requestId])
 
-.surface-premium {
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  color: hsl(var(--card-foreground));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(10px);
-}
+  React.useEffect(() => {
+    if (!Number.isFinite(requestId)) return
+    void load()
+  }, [load, requestId])
 
-.section-spacing {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
+  const yamlPreview = React.useMemo(() => {
+    const state: JobFormState = {
+      version,
+      debugMode,
+      source,
 
-/* ======================================================
-   SECTION CARD SUPPORT
-====================================================== */
+      filePathDataRepMapping,
+      filePathMvp2Output,
+      filePathIdqData,
+      filePathImrData,
+      filePathRagStaticData,
 
-[data-section-card] {
-  transition:
-    background-color 250ms ease,
-    border-color 250ms ease,
-    transform 250ms ease,
-    box-shadow 250ms ease;
-}
+      submittedBy,
+      cronExpression,
+      timezone,
+    }
 
-[data-section-card]:hover {
-  transform: translateY(-2px);
-}
+    return buildRagYaml(state)
+  }, [
+    version,
+    debugMode,
+    source,
+    filePathDataRepMapping,
+    filePathMvp2Output,
+    filePathIdqData,
+    filePathImrData,
+    filePathRagStaticData,
+    submittedBy,
+    cronExpression,
+    timezone,
+  ])
 
-.dark [data-section-card] {
-  background-image: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.06) 0%,
-    rgba(255,255,255,0.03) 100%
-  );
+  const save = async () => {
+    setSaving(true)
+    setError("")
 
-  border-color: rgba(255,255,255,0.08);
+    try {
+      await apiPatch(`/jobs/${requestId}`, {
+        version,
+        debug_mode: debugMode,
+        source,
 
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    0 10px 30px rgba(0,0,0,0.28);
-}
+        file_path_data_rep_mapping:
+          filePathDataRepMapping,
 
-.dark [data-section-card-title] {
-  color: rgba(255,255,255,0.82);
-}
+        file_path_mvp2_output:
+          filePathMvp2Output,
 
-/* ======================================================
-   TABLES
-====================================================== */
+        file_path_idq_data:
+          filePathIdqData,
 
-table {
-  border-collapse: collapse;
-  width: 100%;
-}
+        file_path_imr_data:
+          filePathImrData,
 
-th {
-  font-weight: 600;
-}
+        file_path_rag_static_data:
+          filePathRagStaticData,
 
-tr {
-  transition: background-color 180ms ease;
-}
+        yaml_content: yamlPreview,
 
-/* ======================================================
-   SCROLLBAR
-====================================================== */
+        submitted_by: submittedBy || null,
+        cron_expression: cronExpression || null,
+        timezone: timezone || null,
+      })
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+      await load()
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error")
+    } finally {
+      setSaving(false)
+    }
+  }
 
-::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(120,120,120,0.35);
-}
+  const regenerate = async () => {
+    setSaving(true)
+    setError("")
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(120,120,120,0.5);
+    try {
+      await apiPost(`/jobs/${requestId}/generate`, {})
+      await load()
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const del = async () => {
+    if (!confirm(`Delete request ${requestId}?`)) return
+
+    await apiDelete(`/jobs/${requestId}`)
+    router.push("/")
+  }
+
+  const copyYaml = async () => {
+    await navigator.clipboard.writeText(yamlPreview)
+  }
+
+  if (!job && !error) {
+    return (
+      <div className="min-h-screen">
+        <AppHeader title={`Job Details (${requestId})`} />
+        <main className="mx-auto w-full max-w-6xl px-4 py-6">
+          <p className="text-sm text-muted-foreground">
+            Loading...
+          </p>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen">
+      <AppHeader
+        title={`Job Details (request_id: ${requestId})`}
+      />
+
+      <main className="mx-auto w-full max-w-6xl px-4 py-6">
+        <div className="space-y-6">
+          {error ? (
+            <p className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+
+          <SectionCard title="SUMMARY">
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>job_id: {job?.job_id ?? "-"}</div>
+              <div>livy_id: {job?.livy_id ?? "-"}</div>
+              <div>status: {job?.job_status ?? "-"}</div>
+              <div>
+                created: {job?.created_time ?? "-"}
+              </div>
+              <div>
+                modified: {job?.modified_time ?? "-"}
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="EDIT (PATCH)">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>version</Label>
+                <Input
+                  value={version}
+                  onChange={(e) =>
+                    setVersion(e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>debug_mode</Label>
+                <Input
+                  value={debugMode}
+                  onChange={(e) =>
+                    setDebugMode(e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>source</Label>
+                <Input
+                  value={source}
+                  onChange={(e) =>
+                    setSource(e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>submitted_by</Label>
+                <Input
+                  value={submittedBy}
+                  onChange={(e) =>
+                    setSubmittedBy(e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>cron_expression</Label>
+                <Input
+                  value={cronExpression}
+                  onChange={(e) =>
+                    setCronExpression(e.target.value)
+                  }
+                  placeholder="0 0 9 ? * MON-FRI 2026"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>timezone</Label>
+                <Input
+                  value={timezone}
+                  onChange={(e) =>
+                    setTimezone(e.target.value)
+                  }
+                  placeholder="UTC"
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>
+                  file_path_data_rep_mapping
+                </Label>
+                <Input
+                  value={filePathDataRepMapping}
+                  onChange={(e) =>
+                    setFilePathDataRepMapping(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>file_path_mvp2_output</Label>
+                <Input
+                  value={filePathMvp2Output}
+                  onChange={(e) =>
+                    setFilePathMvp2Output(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>file_path_idq_data</Label>
+                <Input
+                  value={filePathIdqData}
+                  onChange={(e) =>
+                    setFilePathIdqData(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>file_path_imr_data</Label>
+                <Input
+                  value={filePathImrData}
+                  onChange={(e) =>
+                    setFilePathImrData(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>
+                  file_path_rag_static_data
+                </Label>
+                <Input
+                  value={filePathRagStaticData}
+                  onChange={(e) =>
+                    setFilePathRagStaticData(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                disabled={saving}
+                onClick={() => void save()}
+              >
+                Save
+              </Button>
+
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => void regenerate()}
+              >
+                Regenerate artefacts
+              </Button>
+
+              <Button
+                variant="destructive"
+                onClick={() => void del()}
+              >
+                Delete
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={() => router.push("/")}
+              >
+                Back
+              </Button>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="YAML PREVIEW">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => void copyYaml()}
+              >
+                Copy YAML
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  downloadTextFile(
+                    "rag_parameters.yml",
+                    yamlPreview,
+                    "text/yaml"
+                  )
+                }
+              >
+                Download YAML
+              </Button>
+            </div>
+
+            <div className="mt-4">
+              <Textarea
+                value={yamlPreview}
+                readOnly
+                className="min-h-[280px] font-mono text-xs"
+              />
+            </div>
+
+            <p className="mt-2 text-xs text-muted-foreground">
+              Stored in DB as{" "}
+              <code>yaml_content</code> when you
+              click Save.
+            </p>
+          </SectionCard>
+        </div>
+      </main>
+    </div>
+  )
 }
