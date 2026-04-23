@@ -1,321 +1,188 @@
-"use client"
+@import "tailwindcss";
 
-import * as React from "react"
+/* ======================================================
+   PREMIUM SHADCN THEME TOKENS
+   Tailwind v4 safe version (NO @apply issues)
+====================================================== */
 
-import AppHeader from "../components/AppHeader"
-import JobForm from "../components/JobForm"
-import JobsTable from "../components/JobsTable"
-import QueueTable from "../components/QueueTable"
-import RecentLogs from "../components/RecentLogs"
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
 
-import {
-  JobFormState,
-  JobOut,
-  QueueOut,
-} from "../lib/types"
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
 
-import {
-  toJobCreatePayload,
-} from "../lib/mappers"
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
 
-import {
-  apiDelete,
-  apiGet,
-  apiPatch,
-  apiPost,
-} from "../lib/api"
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
 
-const initialState: JobFormState = {
-  version: "local",
-  debugMode: "True",
-  source: "offline",
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
 
-  filePathDataRepMapping:
-    "DataRepresentativenessMapping.xlsx",
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
 
-  filePathMvp2Output: "glcs_data.csv",
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  filePathIdqData: "IDQ_DATA.xlsx",
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
 
-  filePathImrData: "IMR_Ratings.xlsx",
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
 
-  filePathRagStaticData:
-    "RAG_STATIC_DATA.xlsx",
-
-  submittedBy: "",
-
-  cronExpression: "",
-
-  timezone: "UTC",
+  --radius: 14px;
 }
 
-export default function Page() {
-  const [state, setState] =
-    React.useState<JobFormState>(
-      initialState
-    )
+.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
 
-  const [submitStatus, setSubmitStatus] =
-    React.useState<string>("")
+  --card: 224 39% 11%;
+  --card-foreground: 210 40% 98%;
 
-  const [jobs, setJobs] =
-    React.useState<JobOut[]>([])
+  --popover: 224 39% 11%;
+  --popover-foreground: 210 40% 98%;
 
-  const [queue, setQueue] =
-    React.useState<QueueOut[]>([])
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
 
-  const [jobsLoading, setJobsLoading] =
-    React.useState(true)
+  --secondary: 217 28% 16%;
+  --secondary-foreground: 210 40% 98%;
 
-  const [queueLoading, setQueueLoading] =
-    React.useState(true)
+  --muted: 217 28% 16%;
+  --muted-foreground: 215 20% 72%;
 
-  const [jobsError, setJobsError] =
-    React.useState("")
+  --accent: 217 28% 16%;
+  --accent-foreground: 210 40% 98%;
 
-  const [queueError, setQueueError] =
-    React.useState("")
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
 
-  const loadJobs = React.useCallback(
-    async () => {
-      setJobsLoading(true)
-      setJobsError("")
+  --border: 217 22% 22%;
+  --input: 217 22% 22%;
+  --ring: 212 26% 83%;
+}
 
-      try {
-        const data =
-          await apiGet<JobOut[]>(
-            "/jobs?limit=50&offset=0"
-          )
+/* ======================================================
+   BASE
+====================================================== */
 
-        setJobs(
-          Array.isArray(data)
-            ? data
-            : []
-        )
-      } catch (e: unknown) {
-        const message =
-          e instanceof Error
-            ? e.message
-            : typeof e === "string"
-            ? e
-            : "Unknown error"
+* {
+  box-sizing: border-box;
+  border-color: hsl(var(--border));
+}
 
-        setJobsError(message)
-      } finally {
-        setJobsLoading(false)
-      }
-    },
-    []
-  )
+html {
+  scroll-behavior: smooth;
+}
 
-  const loadQueue =
-    React.useCallback(
-      async () => {
-        setQueueLoading(true)
-        setQueueError("")
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition:
+    background-color 250ms ease,
+    color 250ms ease,
+    border-color 250ms ease;
+}
 
-        try {
-          const data =
-            await apiGet<QueueOut[]>(
-              "/queue?limit=200&offset=0"
-            )
+/* ======================================================
+   PREMIUM SURFACES
+====================================================== */
 
-          setQueue(
-            Array.isArray(data)
-              ? data
-              : []
-          )
-        } catch (e: unknown) {
-          const message =
-            e instanceof Error
-              ? e.message
-              : typeof e === "string"
-              ? e
-              : "Unknown error"
+.surface {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
 
-          setQueueError(message)
-        } finally {
-          setQueueLoading(false)
-        }
-      },
-      []
-    )
+.surface-premium {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(10px);
+}
 
-  React.useEffect(() => {
-    void loadJobs()
-    void loadQueue()
-  }, [loadJobs, loadQueue])
+.section-spacing {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
 
-  const submit = async () => {
-    try {
-      const payload =
-        toJobCreatePayload(state)
+/* ======================================================
+   SECTION CARD SUPPORT
+====================================================== */
 
-      const created =
-        await apiPost<JobOut>(
-          "/jobs",
-          payload
-        )
+[data-section-card] {
+  transition:
+    background-color 250ms ease,
+    border-color 250ms ease,
+    transform 250ms ease,
+    box-shadow 250ms ease;
+}
 
-      setSubmitStatus(
-        `Saved. request_id: ${
-          created.request_id
-        } (job_id: ${
-          created.job_id ?? "-"
-        })`
-      )
+[data-section-card]:hover {
+  transform: translateY(-2px);
+}
 
-      setState(initialState)
+.dark [data-section-card] {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.06) 0%,
+    rgba(255,255,255,0.03) 100%
+  );
 
-      await loadJobs()
-      await loadQueue()
-    } catch (e: unknown) {
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-          ? e
-          : "Unknown error"
+  border-color: rgba(255,255,255,0.08);
 
-      setSubmitStatus(
-        `Failed: ${message}`
-      )
-    }
-  }
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 10px 30px rgba(0,0,0,0.28);
+}
 
-  const onDelete = async (
-    requestId: number
-  ) => {
-    if (
-      !confirm(
-        `Delete request ${requestId}?`
-      )
-    ) {
-      return
-    }
+.dark [data-section-card-title] {
+  color: rgba(255,255,255,0.82);
+}
 
-    try {
-      await apiDelete(
-        `/jobs/${requestId}`
-      )
+/* ======================================================
+   TABLES
+====================================================== */
 
-      await loadJobs()
-      await loadQueue()
-    } catch (e: unknown) {
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-          ? e
-          : "Unknown error"
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
 
-      setJobsError(message)
-    }
-  }
+th {
+  font-weight: 600;
+}
 
-  const onQueueUpdate = async (
-    requestId: number,
-    patch: {
-      cron_expression?:
-        | string
-        | null
-      timezone?:
-        | string
-        | null
-      priority?: number
-    }
-  ) => {
-    try {
-      await apiPatch(
-        `/queue/${requestId}`,
-        patch
-      )
+tr {
+  transition: background-color 180ms ease;
+}
 
-      await loadQueue()
-    } catch (e: unknown) {
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-          ? e
-          : "Unknown error"
+/* ======================================================
+   SCROLLBAR
+====================================================== */
 
-      setQueueError(message)
-    }
-  }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
-  const isRunning = (
-    row: QueueOut
-  ) => {
-    const s = String(
-      row.queue_status ?? ""
-    ).toUpperCase()
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(120,120,120,0.35);
+}
 
-    return (
-      s === "RUNNING" ||
-      s === "SUBMITTED" ||
-      s === "IN_PROGRESS"
-    )
-  }
-
-  return (
-    <div className="min-h-screen">
-      <AppHeader title="RAG Job Scheduler" />
-
-      <main className="mx-auto w-full max-w-6xl px-4 py-6">
-        <div className="space-y-6">
-          <JobForm
-            state={state}
-            setState={setState}
-            onSubmit={submit}
-            submitStatus={
-              submitStatus
-            }
-            onReset={() => {
-              setState(
-                initialState
-              )
-              setSubmitStatus("")
-            }}
-          />
-
-          <JobsTable
-            rows={jobs}
-            loading={jobsLoading}
-            error={jobsError}
-            onRefresh={loadJobs}
-            onDelete={onDelete}
-          />
-
-          <QueueTable
-            rows={queue}
-            loading={
-              queueLoading
-            }
-            error={queueError}
-            onRefresh={
-              loadQueue
-            }
-            onUpdate={
-              onQueueUpdate
-            }
-            isRunning={
-              isRunning
-            }
-          />
-
-          <RecentLogs
-            jobs={jobs}
-            loading={
-              jobsLoading
-            }
-            error={jobsError}
-            onRefresh={
-              loadJobs
-            }
-          />
-        </div>
-      </main>
-    </div>
-  )
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120,120,120,0.5);
 }
