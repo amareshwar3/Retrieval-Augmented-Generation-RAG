@@ -6,96 +6,35 @@ import { useParams, useRouter } from "next/navigation"
 import AppHeader from "../../../components/AppHeader"
 import SectionCard from "../../../components/SectionCard"
 
-import { JobOut, JobFormState } from "../../../lib/types"
-import { buildRagYaml } from "../../../lib/yaml"
-import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api"
+import { JobLogOut } from "../../../lib/types"
+import { apiGet } from "../../../lib/api"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 
-function downloadTextFile(
-  filename: string,
-  content: string,
-  mime = "text/yaml"
-) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
-
-  URL.revokeObjectURL(url)
-}
-
-export default function JobDetailsPage() {
+export default function LogsPage() {
   const params = useParams<{ requestId: string }>()
   const router = useRouter()
 
   const requestId = Number(params.requestId)
 
-  const [job, setJob] = React.useState<JobOut | null>(null)
+  const [logs, setLogs] = React.useState<JobLogOut[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
-  const [saving, setSaving] = React.useState(false)
-
-  const [version, setVersion] = React.useState("local")
-  const [debugMode, setDebugMode] = React.useState("True")
-  const [source, setSource] = React.useState("offline")
-
-  const [filePathDataRepMapping, setFilePathDataRepMapping] =
-    React.useState("")
-  const [filePathMvp2Output, setFilePathMvp2Output] =
-    React.useState("")
-  const [filePathIdqData, setFilePathIdqData] =
-    React.useState("")
-  const [filePathImrData, setFilePathImrData] =
-    React.useState("")
-  const [filePathRagStaticData, setFilePathRagStaticData] =
-    React.useState("")
-
-  const [submittedBy, setSubmittedBy] = React.useState("")
-  const [cronExpression, setCronExpression] = React.useState("")
-  const [timezone, setTimezone] = React.useState("UTC")
 
   const load = React.useCallback(async () => {
+    setLoading(true)
     setError("")
 
     try {
-      const data = await apiGet<JobOut>(`/jobs/${requestId}`)
-      setJob(data)
-
-      setVersion(data.version ?? "local")
-      setDebugMode(data.debug_mode ?? "True")
-      setSource(data.source ?? "offline")
-
-      setFilePathDataRepMapping(
-        data.file_path_data_rep_mapping ?? ""
+      const data = await apiGet<JobLogOut[]>(
+        `/logs/by-request/${requestId}?limit=200`
       )
 
-      setFilePathMvp2Output(
-        data.file_path_mvp2_output ?? ""
-      )
-
-      setFilePathIdqData(
-        data.file_path_idq_data ?? ""
-      )
-
-      setFilePathImrData(
-        data.file_path_imr_data ?? ""
-      )
-
-      setFilePathRagStaticData(
-        data.file_path_rag_static_data ?? ""
-      )
-
-      setSubmittedBy(data.submitted_by ?? "")
-      setCronExpression(data.cron_expression ?? "")
-      setTimezone(data.timezone ?? "UTC")
+      setLogs(Array.isArray(data) ? data : [])
     } catch (e: any) {
       setError(e?.message ?? "Unknown error")
+    } finally {
+      setLoading(false)
     }
   }, [requestId])
 
@@ -104,342 +43,72 @@ export default function JobDetailsPage() {
     void load()
   }, [load, requestId])
 
-  const yamlPreview = React.useMemo(() => {
-    const state: JobFormState = {
-      version,
-      debugMode,
-      source,
-
-      filePathDataRepMapping,
-      filePathMvp2Output,
-      filePathIdqData,
-      filePathImrData,
-      filePathRagStaticData,
-
-      submittedBy,
-      cronExpression,
-      timezone,
-    }
-
-    return buildRagYaml(state)
-  }, [
-    version,
-    debugMode,
-    source,
-    filePathDataRepMapping,
-    filePathMvp2Output,
-    filePathIdqData,
-    filePathImrData,
-    filePathRagStaticData,
-    submittedBy,
-    cronExpression,
-    timezone,
-  ])
-
-  const save = async () => {
-    setSaving(true)
-    setError("")
-
-    try {
-      await apiPatch(`/jobs/${requestId}`, {
-        version,
-        debug_mode: debugMode,
-        source,
-
-        file_path_data_rep_mapping:
-          filePathDataRepMapping,
-
-        file_path_mvp2_output:
-          filePathMvp2Output,
-
-        file_path_idq_data:
-          filePathIdqData,
-
-        file_path_imr_data:
-          filePathImrData,
-
-        file_path_rag_static_data:
-          filePathRagStaticData,
-
-        yaml_content: yamlPreview,
-
-        submitted_by: submittedBy || null,
-        cron_expression: cronExpression || null,
-        timezone: timezone || null,
-      })
-
-      await load()
-    } catch (e: any) {
-      setError(e?.message ?? "Unknown error")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const regenerate = async () => {
-    setSaving(true)
-    setError("")
-
-    try {
-      await apiPost(`/jobs/${requestId}/generate`, {})
-      await load()
-    } catch (e: any) {
-      setError(e?.message ?? "Unknown error")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const del = async () => {
-    if (!confirm(`Delete request ${requestId}?`)) return
-
-    await apiDelete(`/jobs/${requestId}`)
-    router.push("/")
-  }
-
-  const copyYaml = async () => {
-    await navigator.clipboard.writeText(yamlPreview)
-  }
-
-  if (!job && !error) {
-    return (
-      <div className="min-h-screen">
-        <AppHeader title={`Job Details (${requestId})`} />
-        <main className="mx-auto w-full max-w-6xl px-4 py-6">
-          <p className="text-sm text-muted-foreground">
-            Loading...
-          </p>
-        </main>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen">
       <AppHeader
-        title={`Job Details (request_id: ${requestId})`}
+        title={`Logs (request_id: ${requestId})`}
       />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => router.push("/")}
+            >
+              Back
+            </Button>
+          </div>
+
           {error ? (
             <p className="text-sm text-destructive">
               {error}
             </p>
           ) : null}
 
-          <SectionCard title="SUMMARY">
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <div>job_id: {job?.job_id ?? "-"}</div>
-              <div>livy_id: {job?.livy_id ?? "-"}</div>
-              <div>status: {job?.job_status ?? "-"}</div>
-              <div>
-                created: {job?.created_time ?? "-"}
-              </div>
-              <div>
-                modified: {job?.modified_time ?? "-"}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="EDIT (PATCH)">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>version</Label>
-                <Input
-                  value={version}
-                  onChange={(e) =>
-                    setVersion(e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>debug_mode</Label>
-                <Input
-                  value={debugMode}
-                  onChange={(e) =>
-                    setDebugMode(e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>source</Label>
-                <Input
-                  value={source}
-                  onChange={(e) =>
-                    setSource(e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>submitted_by</Label>
-                <Input
-                  value={submittedBy}
-                  onChange={(e) =>
-                    setSubmittedBy(e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>cron_expression</Label>
-                <Input
-                  value={cronExpression}
-                  onChange={(e) =>
-                    setCronExpression(e.target.value)
-                  }
-                  placeholder="0 0 9 ? * MON-FRI 2026"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>timezone</Label>
-                <Input
-                  value={timezone}
-                  onChange={(e) =>
-                    setTimezone(e.target.value)
-                  }
-                  placeholder="UTC"
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>
-                  file_path_data_rep_mapping
-                </Label>
-                <Input
-                  value={filePathDataRepMapping}
-                  onChange={(e) =>
-                    setFilePathDataRepMapping(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>file_path_mvp2_output</Label>
-                <Input
-                  value={filePathMvp2Output}
-                  onChange={(e) =>
-                    setFilePathMvp2Output(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>file_path_idq_data</Label>
-                <Input
-                  value={filePathIdqData}
-                  onChange={(e) =>
-                    setFilePathIdqData(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>file_path_imr_data</Label>
-                <Input
-                  value={filePathImrData}
-                  onChange={(e) =>
-                    setFilePathImrData(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label>
-                  file_path_rag_static_data
-                </Label>
-                <Input
-                  value={filePathRagStaticData}
-                  onChange={(e) =>
-                    setFilePathRagStaticData(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button
-                disabled={saving}
-                onClick={() => void save()}
-              >
-                Save
-              </Button>
-
-              <Button
-                variant="outline"
-                disabled={saving}
-                onClick={() => void regenerate()}
-              >
-                Regenerate artefacts
-              </Button>
-
-              <Button
-                variant="destructive"
-                onClick={() => void del()}
-              >
-                Delete
-              </Button>
-
-              <Button
-                variant="ghost"
-                onClick={() => router.push("/")}
-              >
-                Back
-              </Button>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="YAML PREVIEW">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => void copyYaml()}
-              >
-                Copy YAML
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  downloadTextFile(
-                    "rag_parameters.yml",
-                    yamlPreview,
-                    "text/yaml"
-                  )
-                }
-              >
-                Download YAML
-              </Button>
-            </div>
-
-            <div className="mt-4">
-              <Textarea
-                value={yamlPreview}
-                readOnly
-                className="min-h-[280px] font-mono text-xs"
-              />
-            </div>
-
-            <p className="mt-2 text-xs text-muted-foreground">
-              Stored in DB as{" "}
-              <code>yaml_content</code> when you
-              click Save.
+          {loading ? (
+            <p className="text-sm text-muted-foreground">
+              Loading...
             </p>
-          </SectionCard>
+          ) : null}
+
+          {!loading ? (
+            <SectionCard title="LOG ENTRIES">
+              <div className="space-y-3">
+                {logs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No logs yet.
+                  </p>
+                ) : (
+                  logs.map((l, idx) => (
+                    <div
+                      key={l.id ?? idx}
+                      className="rounded-md border p-3"
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {l.created_time}
+                        {l.job_id
+                          ? ` | job_id: ${l.job_id}`
+                          : ""}
+                      </div>
+
+                      <pre className="mt-2 whitespace-pre-wrap break-words text-xs">
+{l.log_content}
+                      </pre>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+          ) : null}
         </div>
       </main>
     </div>
