@@ -1,260 +1,321 @@
 "use client"
 
 import * as React from "react"
-import SectionCard from "./SectionCard"
 
-import { QueueOut } from "../lib/types"
+import AppHeader from "../components/AppHeader"
+import JobForm from "../components/JobForm"
+import JobsTable from "../components/JobsTable"
+import QueueTable from "../components/QueueTable"
+import RecentLogs from "../components/RecentLogs"
 
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+  JobFormState,
+  JobOut,
+  QueueOut,
+} from "../lib/types"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+import {
+  toJobCreatePayload,
+} from "../lib/mappers"
 
-const CRON_HELP = `Quartz cron (7 fields)
-sec min hour day-of-month month day-of-week year
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+} from "../lib/api"
 
-Examples:
-- Every weekday at 09:00 in 2026:
-0 0 9 ? * MON-FRI 2026
+const initialState: JobFormState = {
+  version: "local",
+  debugMode: "True",
+  source: "offline",
 
-Notes:
-- * means "any value"
-- ? means "no specific value" (use in either day-of-month or day-of-week)
-`
+  filePathDataRepMapping:
+    "DataRepresentativenessMapping.xlsx",
 
-export default function QueueTable({
-  rows,
-  loading,
-  error,
-  onRefresh,
-  onUpdate,
-  isRunning,
-}: {
-  rows: QueueOut[]
-  loading: boolean
-  error: string
-  onRefresh: () => Promise<void>
-  onUpdate: (
+  filePathMvp2Output: "glcs_data.csv",
+
+  filePathIdqData: "IDQ_DATA.xlsx",
+
+  filePathImrData: "IMR_Ratings.xlsx",
+
+  filePathRagStaticData:
+    "RAG_STATIC_DATA.xlsx",
+
+  submittedBy: "",
+
+  cronExpression: "",
+
+  timezone: "UTC",
+}
+
+export default function Page() {
+  const [state, setState] =
+    React.useState<JobFormState>(
+      initialState
+    )
+
+  const [submitStatus, setSubmitStatus] =
+    React.useState<string>("")
+
+  const [jobs, setJobs] =
+    React.useState<JobOut[]>([])
+
+  const [queue, setQueue] =
+    React.useState<QueueOut[]>([])
+
+  const [jobsLoading, setJobsLoading] =
+    React.useState(true)
+
+  const [queueLoading, setQueueLoading] =
+    React.useState(true)
+
+  const [jobsError, setJobsError] =
+    React.useState("")
+
+  const [queueError, setQueueError] =
+    React.useState("")
+
+  const loadJobs = React.useCallback(
+    async () => {
+      setJobsLoading(true)
+      setJobsError("")
+
+      try {
+        const data =
+          await apiGet<JobOut[]>(
+            "/jobs?limit=50&offset=0"
+          )
+
+        setJobs(
+          Array.isArray(data)
+            ? data
+            : []
+        )
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+            ? e
+            : "Unknown error"
+
+        setJobsError(message)
+      } finally {
+        setJobsLoading(false)
+      }
+    },
+    []
+  )
+
+  const loadQueue =
+    React.useCallback(
+      async () => {
+        setQueueLoading(true)
+        setQueueError("")
+
+        try {
+          const data =
+            await apiGet<QueueOut[]>(
+              "/queue?limit=200&offset=0"
+            )
+
+          setQueue(
+            Array.isArray(data)
+              ? data
+              : []
+          )
+        } catch (e: unknown) {
+          const message =
+            e instanceof Error
+              ? e.message
+              : typeof e === "string"
+              ? e
+              : "Unknown error"
+
+          setQueueError(message)
+        } finally {
+          setQueueLoading(false)
+        }
+      },
+      []
+    )
+
+  React.useEffect(() => {
+    void loadJobs()
+    void loadQueue()
+  }, [loadJobs, loadQueue])
+
+  const submit = async () => {
+    try {
+      const payload =
+        toJobCreatePayload(state)
+
+      const created =
+        await apiPost<JobOut>(
+          "/jobs",
+          payload
+        )
+
+      setSubmitStatus(
+        `Saved. request_id: ${
+          created.request_id
+        } (job_id: ${
+          created.job_id ?? "-"
+        })`
+      )
+
+      setState(initialState)
+
+      await loadJobs()
+      await loadQueue()
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : "Unknown error"
+
+      setSubmitStatus(
+        `Failed: ${message}`
+      )
+    }
+  }
+
+  const onDelete = async (
+    requestId: number
+  ) => {
+    if (
+      !confirm(
+        `Delete request ${requestId}?`
+      )
+    ) {
+      return
+    }
+
+    try {
+      await apiDelete(
+        `/jobs/${requestId}`
+      )
+
+      await loadJobs()
+      await loadQueue()
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : "Unknown error"
+
+      setJobsError(message)
+    }
+  }
+
+  const onQueueUpdate = async (
     requestId: number,
     patch: {
-      cron_expression?: string | null
-      timezone?: string | null
+      cron_expression?:
+        | string
+        | null
+      timezone?:
+        | string
+        | null
       priority?: number
     }
-  ) => Promise<void>
-  isRunning: (row: QueueOut) => boolean
-}) {
-  const [draftCron, setDraftCron] = React.useState<Record<number, string>>({})
-  const [draftTz, setDraftTz] = React.useState<Record<number, string>>({})
-  const [draftPriority, setDraftPriority] = React.useState<Record<number, string>>({})
+  ) => {
+    try {
+      await apiPatch(
+        `/queue/${requestId}`,
+        patch
+      )
+
+      await loadQueue()
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : "Unknown error"
+
+      setQueueError(message)
+    }
+  }
+
+  const isRunning = (
+    row: QueueOut
+  ) => {
+    const s = String(
+      row.queue_status ?? ""
+    ).toUpperCase()
+
+    return (
+      s === "RUNNING" ||
+      s === "SUBMITTED" ||
+      s === "IN_PROGRESS"
+    )
+  }
 
   return (
-    <SectionCard title="QUEUE (SCHEDULED / FCFS)">
-      <div className="space-y-4">
-        {/* actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => void onRefresh()}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
+    <div className="min-h-screen">
+      <AppHeader title="RAG Job Scheduler" />
+
+      <main className="mx-auto w-full max-w-6xl px-4 py-6">
+        <div className="space-y-6">
+          <JobForm
+            state={state}
+            setState={setState}
+            onSubmit={submit}
+            submitStatus={
+              submitStatus
+            }
+            onReset={() => {
+              setState(
+                initialState
+              )
+              setSubmitStatus("")
+            }}
+          />
+
+          <JobsTable
+            rows={jobs}
+            loading={jobsLoading}
+            error={jobsError}
+            onRefresh={loadJobs}
+            onDelete={onDelete}
+          />
+
+          <QueueTable
+            rows={queue}
+            loading={
+              queueLoading
+            }
+            error={queueError}
+            onRefresh={
+              loadQueue
+            }
+            onUpdate={
+              onQueueUpdate
+            }
+            isRunning={
+              isRunning
+            }
+          />
+
+          <RecentLogs
+            jobs={jobs}
+            loading={
+              jobsLoading
+            }
+            error={jobsError}
+            onRefresh={
+              loadJobs
+            }
+          />
         </div>
-
-        {error ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : null}
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : null}
-
-        {!loading ? (
-          <div className="overflow-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="whitespace-nowrap">
-                    Request ID
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    Queue Status
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    cron_expression
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    timezone
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    next_run_time_utc
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    priority
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    Update
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {rows.map((r) => {
-                  const running = isRunning(r)
-
-                  const cronValue =
-                    draftCron[r.request_id] ??
-                    (r.cron_expression ?? "")
-
-                  const tzValue =
-                    draftTz[r.request_id] ??
-                    (r.timezone ?? "UTC")
-
-                  const prValue =
-                    draftPriority[r.request_id] ??
-                    String(r.priority ?? 0)
-
-                  return (
-                    <TableRow key={String(r.request_id)}>
-                      <TableCell className="whitespace-nowrap">
-                        {r.request_id}
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              running
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {r.queue_status}
-                          </Badge>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="min-w-[320px]">
-                        <Input
-                          disabled={running}
-                          value={cronValue}
-                          placeholder="0 0 9 ? * MON-FRI 2026"
-                          onChange={(e) =>
-                            setDraftCron((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                          title={CRON_HELP}
-                        />
-
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Tip: hover to see cron help
-                          (tooltip via title).
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="min-w-[140px]">
-                        <Input
-                          disabled={running}
-                          value={tzValue}
-                          placeholder="UTC"
-                          onChange={(e) =>
-                            setDraftTz((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                        />
-
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          UTC only.
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        {r.next_run_time_utc ?? "—"}
-                      </TableCell>
-
-                      <TableCell className="min-w-[110px]">
-                        <Input
-                          disabled={running}
-                          value={prValue}
-                          onChange={(e) =>
-                            setDraftPriority((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                        />
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={running}
-                          onClick={() =>
-                            void onUpdate(
-                              r.request_id,
-                              {
-                                cron_expression:
-                                  cronValue.trim()
-                                    ? cronValue.trim()
-                                    : null,
-
-                                timezone:
-                                  tzValue.trim()
-                                    ? tzValue.trim()
-                                    : "UTC",
-
-                                priority: Number(
-                                  prValue || 0
-                                ),
-                              }
-                            )
-                          }
-                        >
-                          Save
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-sm text-muted-foreground"
-                    >
-                      Queue is empty.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-        ) : null}
-      </div>
-    </SectionCard>
+      </main>
+    </div>
   )
 }
