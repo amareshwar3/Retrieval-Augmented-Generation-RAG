@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import SectionCard from "./SectionCard"
+import Link from "next/link"
 
-import { QueueOut } from "../lib/types"
+import SectionCard from "./SectionCard"
+import { JobOut } from "../lib/types"
 
 import {
   Table,
@@ -15,67 +16,49 @@ import {
 } from "@/components/ui/table"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 
-const CRON_HELP = `Quartz cron (7 fields)
-sec min hour day-of-month month day-of-week year
+function clip(s: string, max = 42) {
+  if (!s) return "—"
+  return s.length > max ? s.slice(0, max - 1) + "…" : s
+}
 
-Examples:
-- Every weekday at 09:00 in 2026:
-0 0 9 ? * MON-FRI 2026
-
-Notes:
-- * means "any value"
-- ? means "no specific value" (use in either day-of-month or day-of-week)
-`
-
-export default function QueueTable({
-  rows,
+export default function RecentLogs({
+  jobs,
   loading,
   error,
   onRefresh,
-  onUpdate,
-  isRunning,
 }: {
-  rows: QueueOut[]
+  jobs: JobOut[]
   loading: boolean
   error: string
   onRefresh: () => Promise<void>
-  onUpdate: (
-    requestId: number,
-    patch: {
-      cron_expression?: string | null
-      timezone?: string | null
-      priority?: number
-    }
-  ) => Promise<void>
-  isRunning: (row: QueueOut) => boolean
 }) {
-  const [draftCron, setDraftCron] = React.useState<Record<number, string>>({})
-  const [draftTz, setDraftTz] = React.useState<Record<number, string>>({})
-  const [draftPriority, setDraftPriority] = React.useState<Record<number, string>>({})
+  const items = jobs.slice(0, 10)
+
+  const label = (j: JobOut) =>
+    `${j.version} | ${j.debug_mode} | ${j.source} | ${clip(
+      j.file_path_mvp2_output
+    )}`
 
   return (
-    <SectionCard title="QUEUE (SCHEDULED / FCFS)">
+    <SectionCard title="RECENT JOB LOGS (ENTRY POINTS)">
       <div className="space-y-4">
-        {/* actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => void onRefresh()}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={() => void onRefresh()}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
 
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">
+            Loading…
+          </p>
         ) : null}
 
         {!loading ? (
@@ -87,166 +70,45 @@ export default function QueueTable({
                     Request ID
                   </TableHead>
 
-                  <TableHead className="whitespace-nowrap">
-                    Queue Status
-                  </TableHead>
+                  <TableHead>Job</TableHead>
 
                   <TableHead className="whitespace-nowrap">
-                    cron_expression
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    timezone
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    next_run_time_utc
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    priority
-                  </TableHead>
-
-                  <TableHead className="whitespace-nowrap">
-                    Update
+                    Logs
                   </TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {rows.map((r) => {
-                  const running = isRunning(r)
+                {items.map((j) => (
+                  <TableRow
+                    key={String(j.request_id)}
+                  >
+                    <TableCell className="whitespace-nowrap">
+                      {j.request_id}
+                    </TableCell>
 
-                  const cronValue =
-                    draftCron[r.request_id] ??
-                    (r.cron_expression ?? "")
+                    <TableCell>
+                      {label(j)}
+                    </TableCell>
 
-                  const tzValue =
-                    draftTz[r.request_id] ??
-                    (r.timezone ?? "UTC")
+                    <TableCell className="whitespace-nowrap">
+                      <Link
+                        href={`/logs/${j.request_id}`}
+                        className="text-sm underline underline-offset-4"
+                      >
+                        View logs
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
 
-                  const prValue =
-                    draftPriority[r.request_id] ??
-                    String(r.priority ?? 0)
-
-                  return (
-                    <TableRow key={String(r.request_id)}>
-                      <TableCell className="whitespace-nowrap">
-                        {r.request_id}
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              running
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {r.queue_status}
-                          </Badge>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="min-w-[320px]">
-                        <Input
-                          disabled={running}
-                          value={cronValue}
-                          placeholder="0 0 9 ? * MON-FRI 2026"
-                          onChange={(e) =>
-                            setDraftCron((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                          title={CRON_HELP}
-                        />
-
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Tip: hover to see cron help
-                          (tooltip via title).
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="min-w-[140px]">
-                        <Input
-                          disabled={running}
-                          value={tzValue}
-                          placeholder="UTC"
-                          onChange={(e) =>
-                            setDraftTz((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                        />
-
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          UTC only.
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        {r.next_run_time_utc ?? "—"}
-                      </TableCell>
-
-                      <TableCell className="min-w-[110px]">
-                        <Input
-                          disabled={running}
-                          value={prValue}
-                          onChange={(e) =>
-                            setDraftPriority((m) => ({
-                              ...m,
-                              [r.request_id]:
-                                e.target.value,
-                            }))
-                          }
-                        />
-                      </TableCell>
-
-                      <TableCell className="whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={running}
-                          onClick={() =>
-                            void onUpdate(
-                              r.request_id,
-                              {
-                                cron_expression:
-                                  cronValue.trim()
-                                    ? cronValue.trim()
-                                    : null,
-
-                                timezone:
-                                  tzValue.trim()
-                                    ? tzValue.trim()
-                                    : "UTC",
-
-                                priority: Number(
-                                  prValue || 0
-                                ),
-                              }
-                            )
-                          }
-                        >
-                          Save
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-
-                {rows.length === 0 ? (
+                {items.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={3}
                       className="text-sm text-muted-foreground"
                     >
-                      Queue is empty.
+                      No jobs yet.
                     </TableCell>
                   </TableRow>
                 ) : null}
