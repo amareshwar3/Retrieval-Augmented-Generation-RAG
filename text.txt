@@ -1,334 +1,165 @@
-// frontend/components/JobForm.tsx
+// frontend/components/JobsTable.tsx
 "use client"
 
 import * as React from "react"
-import { Copy, RotateCcw, Send } from "lucide-react"
+import Link from "next/link"
 
-import { JobFormState } from "@/lib/types"
+import { JobOut } from "@/lib/types"
 import SectionCard from "./SectionCard"
-import ChipsInput from "./ChipsInput"
 
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
 import { Button } from "@/components/ui/button"
 
-const CRON_HELP = `Quartz cron (7 fields)
-sec min hour day-of-month month day-of-week year
-
-Example:
-0 0 9 ? * MON-FRI 2026
-
-Notes:
-* means any value
-? means no specific value`
-
-export default function JobForm({
-  state,
-  setState,
-  onSubmit,
-  submitStatus,
-  onReset,
-}: {
-  state: JobFormState
-  setState: React.Dispatch<React.SetStateAction<JobFormState>>
-  onSubmit: () => Promise<void>
-  submitStatus: string
-  onReset: () => void
-}) {
-  const curl = React.useMemo(() => {
-    return `curl -X POST /jobs \\
--H "Content-Type: application/json" \\
--d '${JSON.stringify(state, null, 2)}'`
-  }, [state])
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(curl)
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* JOB DETAILS */}
-      <SectionCard title="JOB DETAILS">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Batch Name</Label>
-            <Input
-              value={state.name}
-              onChange={(e) =>
-                setState((s) => ({ ...s, name: e.target.value }))
-              }
-              placeholder="Unique identifier for this job"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Main File (HDFS)</Label>
-            <Input
-              value={state.file}
-              onChange={(e) =>
-                setState((s) => ({ ...s, file: e.target.value }))
-              }
-              placeholder="e.g. hdfs:///path/to/script.py"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <ChipsInput
-              label="Python Egg / Wheel Files (HDFS)"
-              placeholder="hdfs:///user/.../package.egg"
-              values={state.pyFiles}
-              onChange={(next) =>
-                setState((s) => ({ ...s, pyFiles: next }))
-              }
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <ChipsInput
-              label="Dependencies Files"
-              placeholder="hdfs:///user/.../spark-config.yml"
-              values={state.files}
-              onChange={(next) =>
-                setState((s) => ({ ...s, files: next }))
-              }
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* SPARK CONFIGURATION */}
-      <SectionCard title="SPARK CONFIGURATION">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>spark.pyspark.python</Label>
-            <Input
-              value={state.sparkPysparkPython}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  sparkPysparkPython: e.target.value,
-                }))
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>spark.pyspark.driver.python</Label>
-            <Input
-              value={state.sparkPysparkDriverPython}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  sparkPysparkDriverPython: e.target.value,
-                }))
-              }
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* JOB ARGUMENTS */}
-      <SectionCard title="JOB ARGUMENTS">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field
-            label="--output-files-path"
-            value={state.outputFilesPath}
-            onChange={(v) =>
-              setState((s) => ({ ...s, outputFilesPath: v }))
-            }
-          />
-
-          <Field
-            label="--checkpoints-hdfs-path"
-            value={state.checkpointsHdfsPath}
-            onChange={(v) =>
-              setState((s) => ({ ...s, checkpointsHdfsPath: v }))
-            }
-          />
-
-          <Field
-            label="--log-path"
-            value={state.logPath}
-            onChange={(v) =>
-              setState((s) => ({ ...s, logPath: v }))
-            }
-          />
-
-          <Field
-            label="--hive-output-schema"
-            value={state.hiveOutputSchema}
-            onChange={(v) =>
-              setState((s) => ({ ...s, hiveOutputSchema: v }))
-            }
-          />
-
-          <Field
-            label="--hive-prefix"
-            value={state.hivePrefix}
-            onChange={(v) =>
-              setState((s) => ({ ...s, hivePrefix: v }))
-            }
-          />
-
-          <Field
-            label="--interval"
-            value={state.interval}
-            onChange={(v) =>
-              setState((s) => ({ ...s, interval: v }))
-            }
-          />
-
-          <Field
-            label="--num-snapshots"
-            value={state.numSnapshots}
-            onChange={(v) =>
-              setState((s) => ({ ...s, numSnapshots: v }))
-            }
-          />
-
-          <Field
-            label="--spark-config"
-            value={state.sparkConfig}
-            onChange={(v) =>
-              setState((s) => ({ ...s, sparkConfig: v }))
-            }
-          />
-        </div>
-      </SectionCard>
-
-      {/* SCHEDULING + METADATA */}
-      <SectionCard title="SCHEDULING + METADATA">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>submitted_by</Label>
-            <Input
-              value={state.submittedBy}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  submittedBy: e.target.value,
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              User details (string)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>timezone</Label>
-            <Input
-              value={state.timezone}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  timezone: e.target.value,
-                }))
-              }
-              placeholder="UTC"
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label>cron_expression (Quartz)</Label>
-            <Input
-              title={CRON_HELP}
-              value={state.cronExpression}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  cronExpression: e.target.value,
-                }))
-              }
-              placeholder="0 0 9 ? * MON-FRI 2026"
-            />
-            <p className="text-xs text-muted-foreground whitespace-pre-line">
-              {CRON_HELP}
-            </p>
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label>yaml_content</Label>
-            <Textarea
-              rows={7}
-              value={state.yamlContent}
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  yamlContent: e.target.value,
-                }))
-              }
-              placeholder="Paste YAML template here (optional)"
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* GENERATED CURL */}
-      <SectionCard title="GENERATED CURL COMMAND">
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={copy}
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy
-            </Button>
-
-            <Button
-              type="button"
-              onClick={() => void onSubmit()}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Submit
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onReset}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-          </div>
-
-          {submitStatus ? (
-            <p className="text-sm text-muted-foreground">
-              {submitStatus}
-            </p>
-          ) : null}
-
-          <div className="rounded-xl border bg-muted/30 p-4 overflow-auto">
-            <pre className="whitespace-pre-wrap break-words text-xs font-mono">
-              {curl}
-            </pre>
-          </div>
-        </div>
-      </SectionCard>
-    </div>
-  )
+function clip(s?: string | null, max = 28) {
+  if (!s) return "—"
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
 }
 
-function Field({
-  label,
-  value,
-  onChange,
+export default function JobsTable({
+  rows,
+  loading,
+  error,
+  onRefresh,
+  onDelete,
 }: {
-  label: string
-  value: string
-  onChange: (v: string) => void
+  rows: JobOut[]
+  loading: boolean
+  error: string
+  onRefresh: () => Promise<void>
+  onDelete: (requestId: number) => Promise<void>
 }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
+    <SectionCard title="REQUESTS / JOBS">
+      <div className="space-y-4">
+        {/* actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => void onRefresh()}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        {/* messages */}
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">
+            Loading...
+          </p>
+        ) : null}
+
+        {/* table */}
+        {!loading ? (
+          <div className="overflow-auto rounded-xl border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">
+                    Request ID
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Job ID
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Name
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Submitted By
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Status
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    View
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Delete
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow
+                    key={String(r.request_id)}
+                  >
+                    <TableCell className="whitespace-nowrap">
+                      {r.request_id}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.job_id ?? "—"}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.name}
+                      className="max-w-[220px]"
+                    >
+                      {clip(r.name, 34)}
+                    </TableCell>
+
+                    <TableCell
+                      title={r.submitted_by ?? ""}
+                      className="max-w-[220px]"
+                    >
+                      {clip(r.submitted_by, 30)}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      {r.job_status ?? "—"}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <Link
+                        href={`/jobs/${r.request_id}`}
+                        className="text-sm underline underline-offset-4"
+                      >
+                        View
+                      </Link>
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() =>
+                          void onDelete(r.request_id)
+                        }
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="text-sm text-muted-foreground"
+                    >
+                      No jobs found.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+      </div>
+    </SectionCard>
   )
 }
